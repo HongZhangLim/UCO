@@ -1,0 +1,26 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Local Dev & System
+node_modules/
+.system_generated/
+scratch/
+
+# Tests & Draft Specs (Strict Global Rule)
+tests/
+test/
+*.test.js
+*.spec.js
+UCO_SPEC.md
+PLAN.md
+docs/
+
+# Local Environment & Secrets
+.env
+.env.local
+*.log
