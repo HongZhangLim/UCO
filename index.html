@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F2F2F7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>UCO</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23D97706'/><path d='M50 22 C42 35 34 48 34 60 C34 71 41 78 50 78 C59 78 66 71 66 60 C66 48 58 35 50 22 Z' fill='%23FFF'/></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Apple Floating Island Header -->
+  <header id="island" class="glass" aria-live="polite">
+    <div class="island-top">
+      <div class="brand">
+        <span class="brand-title">UCO</span>
+        <div class="sync-indicator" id="syncIndicator" title="Live Cloud Sync">
+          <span class="sync-dot"></span>
+          <span class="sync-label" id="syncLabel">Live</span>
+        </div>
+      </div>
+      <div class="total-display">
+        <span class="kg-value" id="totalKg">0.0</span>
+        <span class="target-sub">/ 300.0 kg</span>
+      </div>
+    </div>
+    <div class="progress-track" role="progressbar" aria-label="Collection progress towards 300 kg" aria-valuemin="0" aria-valuemax="300">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="island-meta">
+      <span class="status-badge" id="percentBadge">0.0%</span>
+      <span class="meta-detail" id="remainingText">300.0 kg to goal</span>
+      <span class="meta-pace" id="paceText">Pacing 0 kg/wk</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Map Tab -->
+    <section id="tab-map" class="view-panel active" aria-label="Campus Map">
+      <div id="map"></div>
+      <button id="locateBtn" class="fab-locate glass" aria-label="Locate my position">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-13a5 5 0 1 0 5 5 5 5 0 0 0-5-5zm0 8a3 3 0 1 1 3-3 3 3 0 0 1-3 3z"/>
+        </svg>
+      </button>
+    </section>
+
+    <!-- Overview / Stats Tab -->
+    <section id="tab-overview" class="view-panel scroll-content" aria-label="Impact and Summary">
+      <div class="content-container">
+        <div class="section-header">
+          <h1>Overview</h1>
+          <p class="subtitle">Universiti Malaya Used Cooking Oil Initiative</p>
+        </div>
+
+        <!-- Academic CS Impact Metrics -->
+        <h2 class="sub-heading">Environmental Impact</h2>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-caption">CO₂e Offset</span>
+            <div class="metric-number"><span id="co2Val">0.0</span> <small>kg</small></div>
+            <span class="metric-sub">kg × 2.85 factor</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-caption">Biodiesel Yield</span>
+            <div class="metric-number"><span id="bioVal">0.0</span> <small>L</small></div>
+            <span class="metric-sub">kg × 0.92 conversion</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-caption">Water Protected</span>
+            <div class="metric-number"><span id="waterVal">0</span> <small>kL</small></div>
+            <span class="metric-sub">1 kg : 1,000,000 L</span>
+          </div>
+        </div>
+
+        <!-- College Leaderboard -->
+        <h2 class="sub-heading">College Contributions</h2>
+        <div class="card card-board">
+          <ol class="leaderboard-list" id="leaderboardList"></ol>
+        </div>
+
+        <!-- Activity Feed with Photo Proofs -->
+        <h2 class="sub-heading">Recent Pickups &amp; Photo Proof</h2>
+        <div class="card card-feed">
+          <ul class="activity-list" id="activityList"></ul>
+        </div>
+
+        <!-- Cloud Sync Config Card -->
+        <div class="card card-sync">
+          <div class="sync-card-header">
+            <span class="sync-card-title">Cloud Database Sync</span>
+            <span class="sync-pill" id="syncStatusBadge">Connected</span>
+          </div>
+          <p class="sync-card-desc">All 9 team members share a unified database across phones.</p>
+          <div class="sync-input-group">
+            <input type="url" id="cloudEndpointInput" placeholder="https://your-worker.workers.dev/api" aria-label="Cloud Endpoint URL">
+            <button type="button" id="saveEndpointBtn" class="sync-save-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Quick Action Pill -->
+  <button id="openLogBtn" class="action-pill">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    <span>Log Pickup</span>
+  </button>
+
+  <!-- Minimalist Bottom Navigation Dock -->
+  <nav id="bottomDock" class="glass" aria-label="Navigation">
+    <button class="dock-item active" data-tab="tab-map">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+        <line x1="8" y1="2" x2="8" y2="18"></line>
+        <line x1="16" y1="6" x2="16" y2="22"></line>
+      </svg>
+      <span>Map</span>
+    </button>
+    <button class="dock-item" data-tab="tab-overview">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"></line>
+        <line x1="12" y1="20" x2="12" y2="4"></line>
+        <line x1="6" y1="20" x2="6" y2="14"></line>
+      </svg>
+      <span>Overview</span>
+    </button>
+  </nav>
+
+  <!-- Apple Bottom Sheet Log Form -->
+  <div id="sheetBackdrop" class="sheet-scrim" aria-hidden="true"></div>
+  <div id="logSheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetHeading">
+    <div class="sheet-drag-handle"><span></span></div>
+    <div class="sheet-header">
+      <h2 id="sheetHeading">Record Pickup</h2>
+      <button type="button" id="closeSheetBtn" class="sheet-close-btn" aria-label="Close">Cancel</button>
+    </div>
+
+    <form id="pickupForm" class="sheet-form" autocomplete="off" novalidate>
+      <div class="form-section">
+        <label class="form-label">Collector</label>
+        <div class="chip-scroller" id="collectorChips" role="radiogroup" aria-label="Select Collector"></div>
+      </div>
+
+      <div class="form-section">
+        <label for="locationSelect" class="form-label">Location</label>
+        <div class="select-wrapper">
+          <select id="locationSelect" required aria-label="Select College or Faculty"></select>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label for="weightInput" class="form-label">Weight (kg)</label>
+        <div class="weight-input-row">
+          <input type="number" id="weightInput" inputmode="decimal" step="0.1" min="0.1" max="500" value="15.0" required aria-label="Weight in kilograms">
+          <span class="weight-unit">kg</span>
+        </div>
+        <div class="stepper-row" role="group" aria-label="Adjust Weight">
+          <button type="button" class="step-btn" data-step="-1.0">−1.0</button>
+          <button type="button" class="step-btn" data-step="-0.5">−0.5</button>
+          <button type="button" class="step-btn" data-step="0.5">+0.5</button>
+          <button type="button" class="step-btn" data-step="1.0">+1.0</button>
+          <button type="button" class="step-btn" data-step="5.0">+5.0</button>
+        </div>
+      </div>
+
+      <!-- Photo Proof Attachment -->
+      <div class="form-section">
+        <label class="form-label">Photo Proof <span class="form-sublabel">(Scale / Container)</span></label>
+        <div class="photo-dropzone" id="photoDropzone">
+          <input type="file" id="photoInput" accept="image/*" capture="environment" aria-label="Take or Upload Photo Proof">
+          <div class="photo-prompt" id="photoPrompt">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span>Tap to snap photo or upload proof</span>
+          </div>
+          <div class="photo-preview-box" id="photoPreviewBox" hidden>
+            <img id="photoPreviewImg" alt="Scale Proof Preview">
+            <button type="button" id="removePhotoBtn" class="photo-remove-btn" aria-label="Remove photo">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">Status Tag</label>
+        <div class="tag-row" id="tagChips"></div>
+      </div>
+
+      <div class="form-section">
+        <label for="notesInput" class="form-label">Notes (Optional)</label>
+        <input type="text" id="notesInput" maxlength="140" placeholder="e.g. Swapped clean container" aria-label="Pickup notes">
+      </div>
+
+      <button type="submit" id="submitPickupBtn" class="sheet-submit-btn">Save Pickup</button>
+    </form>
+  </div>
+
+  <!-- Apple Quick Look Photo Lightbox -->
+  <div id="photoLightbox" class="lightbox-modal" aria-hidden="true">
+    <div class="lightbox-scrim" id="lightboxScrim"></div>
+    <div class="lightbox-card">
+      <div class="lightbox-img-wrap">
+        <img id="lightboxImg" alt="Full scale proof">
+      </div>
+      <div class="lightbox-info">
+        <div class="lightbox-caption" id="lightboxCaption"></div>
+        <button type="button" id="closeLightboxBtn" class="lightbox-close-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastMessage" class="toast-capsule" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
