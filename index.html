@@ -48,6 +48,33 @@
       </button>
     </section>
 
+    <!-- Cafes & Vendors Directory Tab -->
+    <section id="tab-cafes" class="view-panel scroll-content" aria-label="Cafes Directory">
+      <div class="content-container">
+        <div class="section-header with-action">
+          <div>
+            <h1>Cafes &amp; Stalls</h1>
+            <p class="subtitle">Agreements, requirements &amp; contacts</p>
+          </div>
+          <button type="button" id="addNewVendorBtn" class="pill-action-btn">
+            <span>+ Add Cafe</span>
+          </button>
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="filter-scroller" id="statusFilterBar" role="tablist" aria-label="Filter by Status">
+          <button type="button" class="filter-chip active" data-filter="All">All <span class="count" id="countAll">0</span></button>
+          <button type="button" class="filter-chip chip-free" data-filter="Free">Free <span class="count" id="countFree">0</span></button>
+          <button type="button" class="filter-chip chip-paid" data-filter="Paid">Paid <span class="count" id="countPaid">0</span></button>
+          <button type="button" class="filter-chip chip-followup" data-filter="Follow Up">Follow Up <span class="count" id="countFollowUp">0</span></button>
+          <button type="button" class="filter-chip chip-reject" data-filter="Reject">Reject <span class="count" id="countReject">0</span></button>
+        </div>
+
+        <!-- Vendors List -->
+        <div class="vendors-container" id="vendorsContainer"></div>
+      </div>
+    </section>
+
     <!-- Overview / Stats Tab -->
     <section id="tab-overview" class="view-panel scroll-content" aria-label="Impact and Summary">
       <div class="content-container">
@@ -123,6 +150,16 @@
       </svg>
       <span>Map</span>
     </button>
+    <button class="dock-item" data-tab="tab-cafes">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+        <line x1="6" y1="1" x2="6" y2="4"></line>
+        <line x1="10" y1="1" x2="10" y2="4"></line>
+        <line x1="14" y1="1" x2="14" y2="4"></line>
+      </svg>
+      <span>Cafes</span>
+    </button>
     <button class="dock-item" data-tab="tab-overview">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -133,7 +170,7 @@
     </button>
   </nav>
 
-  <!-- Apple Bottom Sheet Log Form -->
+  <!-- Apple Bottom Sheet 1: Record Pickup Sheet -->
   <div id="sheetBackdrop" class="sheet-scrim" aria-hidden="true"></div>
   <div id="logSheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetHeading">
     <div class="sheet-drag-handle"><span></span></div>
@@ -149,10 +186,19 @@
       </div>
 
       <div class="form-section">
-        <label for="locationSelect" class="form-label">Location</label>
+        <label for="locationSelect" class="form-label">Location (KK / Faculty)</label>
         <div class="select-wrapper">
           <select id="locationSelect" required aria-label="Select College or Faculty"></select>
         </div>
+      </div>
+
+      <!-- Specific Vendor / Stall Picker -->
+      <div class="form-section">
+        <label for="vendorSelect" class="form-label">Cafe Vendor / Stall</label>
+        <div class="select-wrapper">
+          <select id="vendorSelect" required aria-label="Select Cafe Vendor"></select>
+        </div>
+        <div id="vendorRequirementHint" class="requirement-hint-box" hidden></div>
       </div>
 
       <div class="form-section">
@@ -190,7 +236,7 @@
       </div>
 
       <div class="form-section">
-        <label class="form-label">Status Tag</label>
+        <label class="form-label">Payment / Status Tag</label>
         <div class="tag-row" id="tagChips"></div>
       </div>
 
@@ -200,6 +246,57 @@
       </div>
 
       <button type="submit" id="submitPickupBtn" class="sheet-submit-btn">Save Pickup</button>
+    </form>
+  </div>
+
+  <!-- Apple Bottom Sheet 2: Edit / Add Cafe Vendor Sheet -->
+  <div id="vendorSheetBackdrop" class="sheet-scrim" aria-hidden="true"></div>
+  <div id="vendorSheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="vendorSheetHeading">
+    <div class="sheet-drag-handle"><span></span></div>
+    <div class="sheet-header">
+      <h2 id="vendorSheetHeading">Cafe Vendor Details</h2>
+      <button type="button" id="closeVendorSheetBtn" class="sheet-close-btn" aria-label="Close">Cancel</button>
+    </div>
+
+    <form id="vendorForm" class="sheet-form" autocomplete="off" novalidate>
+      <input type="hidden" id="vendorEditId">
+
+      <div class="form-section">
+        <label for="vendorLocationSelect" class="form-label">College / Faculty</label>
+        <div class="select-wrapper">
+          <select id="vendorLocationSelect" required aria-label="Select Location"></select>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label for="vendorNameInput" class="form-label">Stall / Vendor Name</label>
+        <input type="text" id="vendorNameInput" placeholder="e.g. Western Food, Nasi Ayam" required aria-label="Vendor Name">
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">Agreement Status</label>
+        <div class="vendor-status-chips" id="vendorStatusChips">
+          <button type="button" class="status-chip chip-free" data-status="Free">Free</button>
+          <button type="button" class="status-chip chip-paid" data-status="Paid">Paid</button>
+          <button type="button" class="status-chip chip-followup" data-status="Follow Up">Follow Up</button>
+          <button type="button" class="status-chip chip-reject" data-status="Reject">Reject</button>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label for="vendorRequirementInput" class="form-label">Requirement &amp; Constraints</label>
+        <textarea id="vendorRequirementInput" rows="2" placeholder="e.g. Needs clean container replacement, collect Friday only, RM 2.50/kg" aria-label="Special Requirements"></textarea>
+      </div>
+
+      <div class="form-section">
+        <label for="vendorContactInput" class="form-label">Contact Person / Phone (Optional)</label>
+        <input type="text" id="vendorContactInput" placeholder="e.g. 018-3557751 (Boss)" aria-label="Contact Phone">
+      </div>
+
+      <div class="vendor-form-actions">
+        <button type="submit" id="saveVendorBtn" class="sheet-submit-btn">Save Vendor</button>
+        <button type="button" id="deleteVendorBtn" class="sheet-delete-btn" hidden>Delete Vendor</button>
+      </div>
     </form>
   </div>
 
