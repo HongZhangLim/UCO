@@ -1010,13 +1010,15 @@ main {
   gap: 6px;
 }
 
-.form-section input[type="text"], .form-section textarea {
+.form-section input[type="text"], .form-section input[type="date"], .form-section textarea {
   width: 100%;
   padding: 10px 14px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 14px;
+  font-family: inherit;
+  color: var(--text-primary);
   outline: none;
 }
 

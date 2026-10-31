@@ -100,6 +100,17 @@ const DEFAULT_VENDORS = [
     updatedAt: 1730300000000
   },
 
+  // KK5
+  {
+    id: 'v-kk5-1',
+    locationId: 'kk5',
+    name: 'Shawarma',
+    status: 'Free',
+    requirement: '',
+    contact: '',
+    updatedAt: 1730300000000
+  },
+
   // KK6
   {
     id: 'v-kk6-1',
@@ -210,8 +221,32 @@ const DEFAULT_VENDORS = [
   }
 ];
 
-// Initial Seed Pickup Record
+// Initial Seed Pickup Records (Including Week 3 collections)
 const DEFAULT_RECORDS = [
+  {
+    id: 'rec-20261023-kk5',
+    locationId: 'kk5',
+    vendorId: 'v-kk5-1',
+    vendorName: 'Shawarma',
+    kg: 5.0,
+    collector: 'Mingdao',
+    tag: 'Free Donation',
+    notes: 'Week 3 collection',
+    photo: '',
+    timestamp: 1792728000000
+  },
+  {
+    id: 'rec-20261023-kk6',
+    locationId: 'kk6',
+    vendorId: 'v-kk6-3',
+    vendorName: 'Ayam Gunting',
+    kg: 5.0,
+    collector: 'Mingdao',
+    tag: 'Free Donation',
+    notes: 'Week 3 collection',
+    photo: '',
+    timestamp: 1792731600000
+  },
   {
     id: 'seed-1',
     locationId: 'kk11',
@@ -222,7 +257,7 @@ const DEFAULT_RECORDS = [
     tag: 'Free Donation',
     notes: 'Nasi Campur donation with swapped clean container',
     photo: '',
-    timestamp: Date.now() - (2 * 864e5)
+    timestamp: 1792555200000
   }
 ];
 
@@ -356,6 +391,14 @@ function initStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     records = raw ? JSON.parse(raw) : DEFAULT_RECORDS;
+    // Merge any default records not yet in local storage
+    DEFAULT_RECORDS.forEach(defRec => {
+      if (!records.some(r => r.id === defRec.id)) {
+        records.push(defRec);
+      }
+    });
+    records.sort((a, b) => a.timestamp - b.timestamp);
+    saveRecordsStorage();
   } catch (e) {
     records = DEFAULT_RECORDS;
   }
@@ -364,10 +407,12 @@ function initStorage() {
   try {
     const rawVendors = localStorage.getItem(VENDORS_STORAGE_KEY);
     vendors = rawVendors ? JSON.parse(rawVendors) : DEFAULT_VENDORS;
-    if (!Array.isArray(vendors) || vendors.length === 0) {
-      vendors = DEFAULT_VENDORS;
-      saveVendorsStorage();
-    }
+    DEFAULT_VENDORS.forEach(defV => {
+      if (!vendors.some(v => v.id === defV.id)) {
+        vendors.push(defV);
+      }
+    });
+    saveVendorsStorage();
   } catch (e) {
     vendors = DEFAULT_VENDORS;
   }
@@ -931,6 +976,10 @@ function openSheetWithLocation(locationId, vendorId = '') {
     locationSelect.value = locationId;
     updateVendorSelectOptions(locationId, vendorId);
   }
+  const dateInput = $('#dateInput');
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
   clearPhotoInput();
   sheetBackdrop.classList.add('visible');
   logSheet.classList.add('open');
@@ -940,6 +989,10 @@ function closeSheet() {
   sheetBackdrop.classList.remove('visible');
   logSheet.classList.remove('open');
   clearPhotoInput();
+  const dateInput = $('#dateInput');
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
 }
 
 function clearPhotoInput() {
@@ -1076,6 +1129,12 @@ function setupApp() {
     const vId = vendorSelect.value;
     const vObj = vendors.find(v => v.id === vId);
 
+    const dateInput = $('#dateInput');
+    const chosenDate = dateInput ? dateInput.value : '';
+    const recordTimestamp = chosenDate
+      ? new Date(chosenDate + 'T12:00:00').getTime()
+      : Date.now();
+
     const newRecord = {
       id: 'rec-' + Date.now(),
       locationId: locId,
@@ -1086,10 +1145,11 @@ function setupApp() {
       tag: selectedTag,
       notes: notesInput.value.trim(),
       photo: currentCompressedPhoto,
-      timestamp: Date.now()
+      timestamp: recordTimestamp
     };
 
     records.push(newRecord);
+    records.sort((a, b) => a.timestamp - b.timestamp);
     saveRecordsStorage();
     updateUI();
     closeSheet();

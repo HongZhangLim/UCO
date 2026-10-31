@@ -4,6 +4,30 @@
 
 let memoryStore = [
   {
+    id: 'rec-20261023-kk5',
+    locationId: 'kk5',
+    vendorId: 'v-kk5-1',
+    vendorName: 'Shawarma',
+    kg: 5.0,
+    collector: 'Mingdao',
+    tag: 'Free Donation',
+    notes: 'Week 3 collection',
+    photo: '',
+    timestamp: 1792728000000
+  },
+  {
+    id: 'rec-20261023-kk6',
+    locationId: 'kk6',
+    vendorId: 'v-kk6-3',
+    vendorName: 'Ayam Gunting',
+    kg: 5.0,
+    collector: 'Mingdao',
+    tag: 'Free Donation',
+    notes: 'Week 3 collection',
+    photo: '',
+    timestamp: 1792731600000
+  },
+  {
     id: 'seed-1',
     locationId: 'kk11',
     vendorId: 'v-kk11-1',

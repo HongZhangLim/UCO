@@ -6,6 +6,7 @@ const SEED_VENDORS = [
   { id: 'v-kk2-2', locationId: 'kk2', name: 'Nasi Campur', status: 'Free', requirement: 'Can collect this Friday', contact: '', updatedAt: 1730300000000 },
   { id: 'v-kk3-1', locationId: 'kk3', name: 'Cafe Vendor (Bulk Supplier)', status: 'Follow Up', requirement: 'Contact boss, he might sell us many kg', contact: '019-6769527', updatedAt: 1730300000000 },
   { id: 'v-kk4-1', locationId: 'kk4', name: 'Ayam Gunting 4K', status: 'Paid', requirement: 'Purchase arrangement', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk5-1', locationId: 'kk5', name: 'Shawarma', status: 'Free', requirement: '', contact: '', updatedAt: 1730300000000 },
   { id: 'v-kk6-1', locationId: 'kk6', name: 'Nasi Ayam', status: 'Free', requirement: 'Needs container replacement. Collect anytime (told them Friday)', contact: '', updatedAt: 1730300000000 },
   { id: 'v-kk6-2', locationId: 'kk6', name: 'Nasi Campur', status: 'Follow Up', requirement: 'Need to ask their boss', contact: '019-2234282', updatedAt: 1730300000000 },
   { id: 'v-kk6-3', locationId: 'kk6', name: 'Ayam Gunting', status: 'Follow Up', requirement: 'Closed today — follow up next visit', contact: '', updatedAt: 1730300000000 },
