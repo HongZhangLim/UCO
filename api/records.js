@@ -72,6 +72,8 @@ export default async function handler(req, res) {
     }
   }
 
+  const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+
   // POST /api/records — Append or delete a pickup
   if (req.method === 'POST') {
     try {
@@ -80,8 +82,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing record id' });
       }
 
-      // Handle record deletion
+      // Handle record deletion (Requires Security PIN)
       if (newRecord._deleted || newRecord.action === 'delete') {
+        if (String(newRecord.pin || '') !== ADMIN_PIN) {
+          return res.status(401).json({ error: 'Unauthorized: Invalid Security PIN' });
+        }
+
         if (kvUrl && kvToken) {
           const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
             headers: { Authorization: `Bearer ${kvToken}` },

@@ -69,6 +69,8 @@ export default async function handler(req, res) {
     }
   }
 
+  const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+
   // POST /api/vendors (Sync or update vendor)
   if (req.method === 'POST') {
     try {
@@ -94,6 +96,9 @@ export default async function handler(req, res) {
         }
 
         if (payload._deleted) {
+          if (String(payload.pin || '') !== ADMIN_PIN) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid Security PIN' });
+          }
           updatedVendors = current.filter(v => v.id !== payload.id);
         } else {
           const idx = current.findIndex(v => v.id === payload.id);

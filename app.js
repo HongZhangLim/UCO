@@ -10,6 +10,8 @@ const TARGET_KG = 300.0;
 const STORAGE_KEY = 'uco.records.v2';
 const VENDORS_STORAGE_KEY = 'uco.vendors.v2';
 const ENDPOINT_KEY = 'uco.cloud_endpoint';
+const PIN_KEY = 'uco.admin_pin';
+const DEFAULT_PIN = '2026';
 
 // 100% Verified UM Campus Coordinates (OpenStreetMap)
 const UM_LOCATIONS = [
@@ -374,6 +376,9 @@ function initStorage() {
 
   cloudEndpoint = localStorage.getItem(ENDPOINT_KEY) || autoEndpoint;
   if (cloudEndpointInput) cloudEndpointInput.value = cloudEndpoint;
+
+  const adminPinInput = $('#adminPinInput');
+  if (adminPinInput) adminPinInput.value = localStorage.getItem(PIN_KEY) || '';
 
   // Load Pickup Records
   try {
@@ -872,7 +877,7 @@ function updateUI() {
     });
   });
 
-  // Attach Record Delete handlers
+  // Attach Record Delete handlers with Security PIN protection
   activityListEl.querySelectorAll('.activity-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -881,13 +886,21 @@ function updateUI() {
       if (!rec) return;
       const loc = LOCATIONS_MAP[rec.locationId] || { code: rec.locationId };
       const stallLabel = rec.vendorName ? ` (${rec.vendorName})` : '';
-      if (confirm(`Delete pickup record: ${rec.kg} kg at ${loc.code}${stallLabel}?`)) {
-        records = records.filter(r => r.id !== recId);
-        saveRecordsStorage();
-        updateUI();
-        pushRecordToCloud({ id: recId, _deleted: true });
-        showToast('Pickup record deleted');
+
+      const inputPin = prompt(`Security PIN Required:\nEnter Team PIN to delete ${rec.kg} kg at ${loc.code}${stallLabel}:`);
+      if (inputPin === null) return;
+
+      const expectedPin = localStorage.getItem(PIN_KEY) || DEFAULT_PIN;
+      if (inputPin.trim() !== expectedPin) {
+        showToast('Incorrect PIN — deletion cancelled');
+        return;
       }
+
+      records = records.filter(r => r.id !== recId);
+      saveRecordsStorage();
+      updateUI();
+      pushRecordToCloud({ id: recId, _deleted: true, pin: inputPin.trim() });
+      showToast('Pickup record deleted');
     });
   });
 
@@ -1249,13 +1262,22 @@ function setupApp() {
     });
   }
 
-  // Delete Vendor Button
+  // Delete Vendor Button (Requires Security PIN)
   if (deleteVendorBtn) {
     deleteVendorBtn.addEventListener('click', () => {
       const editId = vendorEditId.value;
       if (!editId) return;
 
       const toDelete = vendors.find(v => v.id === editId);
+      const inputPin = prompt(`Security PIN Required:\nEnter Team PIN to delete stall "${toDelete ? toDelete.name : ''}":`);
+      if (inputPin === null) return;
+
+      const expectedPin = localStorage.getItem(PIN_KEY) || DEFAULT_PIN;
+      if (inputPin.trim() !== expectedPin) {
+        showToast('Incorrect PIN — deletion cancelled');
+        return;
+      }
+
       vendors = vendors.filter(v => v.id !== editId);
       saveVendorsStorage();
       renderVendors();
@@ -1264,7 +1286,7 @@ function setupApp() {
       closeVendorSheet();
 
       if (toDelete) {
-        pushVendorToCloud({ id: editId, _deleted: true });
+        pushVendorToCloud({ id: editId, _deleted: true, pin: inputPin.trim() });
         showToast(`Removed stall: ${toDelete.name}`);
       }
     });
@@ -1303,6 +1325,22 @@ function setupApp() {
       localStorage.setItem(ENDPOINT_KEY, url);
       showToast(url ? 'Sync URL saved' : 'Sync URL cleared');
       syncWithCloud();
+    });
+  }
+
+  // Save Team Security PIN
+  const savePinBtn = $('#savePinBtn');
+  const adminPinInput = $('#adminPinInput');
+  if (savePinBtn) {
+    savePinBtn.addEventListener('click', () => {
+      const pin = adminPinInput.value.trim();
+      if (pin) {
+        localStorage.setItem(PIN_KEY, pin);
+        showToast('Team PIN saved');
+      } else {
+        localStorage.removeItem(PIN_KEY);
+        showToast('Team PIN reset to default (2026)');
+      }
     });
   }
 
