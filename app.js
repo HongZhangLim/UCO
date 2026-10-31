@@ -341,7 +341,11 @@ function escapeHtml(str) {
 
 // Storage Engine
 function initStorage() {
-  const autoEndpoint = (window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost'))
+  const isVercelOrCustom = window.location.protocol.startsWith('http') &&
+    !window.location.hostname.includes('localhost') &&
+    !window.location.hostname.includes('github.io');
+
+  const autoEndpoint = isVercelOrCustom
     ? window.location.origin + '/api/records'
     : '';
 
@@ -373,7 +377,18 @@ function saveRecordsStorage() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   } catch (e) {
-    console.warn('Storage warning (records):', e);
+    console.warn('Storage quota warning, pruning older photos from local cache:', e);
+    try {
+      const pruned = records.map((r, idx) => {
+        if (idx < records.length - 10 && r.photo) {
+          return { ...r, photo: '' }; // Preserves photos in cloud, frees local 5MB cache
+        }
+        return r;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned));
+    } catch (e2) {
+      console.warn('Storage warning (records):', e2);
+    }
   }
 }
 
@@ -1052,6 +1067,10 @@ function setupApp() {
     e.preventDefault();
     const kg = parseFloat(weightInput.value);
     if (!kg || kg <= 0) return;
+    if (kg > 500) {
+      showToast('Maximum 500 kg per entry');
+      return;
+    }
 
     const locId = locationSelect.value;
     const vId = vendorSelect.value;

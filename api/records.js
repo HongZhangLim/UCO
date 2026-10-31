@@ -6,12 +6,14 @@ let memoryStore = [
   {
     id: 'seed-1',
     locationId: 'kk11',
+    vendorId: 'v-kk11-1',
+    vendorName: 'Nasi Campur',
     kg: 18.5,
     collector: 'Mingdao',
     tag: 'Free Donation',
-    notes: 'Nasi Campur & Shawarma stall donation',
+    notes: 'Nasi Campur donation with swapped clean container',
     photo: '',
-    timestamp: Date.now() - (2 * 864e5)
+    timestamp: 1730100000000
   }
 ];
 
@@ -33,7 +35,8 @@ export default async function handler(req, res) {
     try {
       if (kvUrl && kvToken) {
         const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
-          headers: { Authorization: `Bearer ${kvToken}` }
+          headers: { Authorization: `Bearer ${kvToken}` },
+          cache: 'no-store'
         });
         const kvData = await kvRes.json();
         const records = kvData.result ? JSON.parse(kvData.result) : memoryStore;
@@ -53,10 +56,18 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Invalid record data' });
       }
 
+      // Validate weight range
+      const kgNum = parseFloat(newRecord.kg);
+      if (isNaN(kgNum) || kgNum <= 0 || kgNum > 500) {
+        return res.status(400).json({ error: 'Weight must be between 0.1 and 500 kg' });
+      }
+      newRecord.kg = Math.round(kgNum * 10) / 10;
+
       if (kvUrl && kvToken) {
-        // Fetch current records
+        // Fetch current records with fresh un-cached read
         const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
-          headers: { Authorization: `Bearer ${kvToken}` }
+          headers: { Authorization: `Bearer ${kvToken}` },
+          cache: 'no-store'
         });
         const kvData = await kvRes.json();
         let records = kvData.result ? JSON.parse(kvData.result) : [...memoryStore];

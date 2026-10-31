@@ -1,6 +1,24 @@
 // Vercel Serverless Function: /api/vendors
 // Shared database for cafe vendor directory across teammates.
 
+const SEED_VENDORS = [
+  { id: 'v-kk2-1', locationId: 'kk2', name: 'Western Food', status: 'Paid', requirement: 'Offer ~RM 2.50/kg (normally sell RM 3.00/kg). Need to confirm with boss first', contact: '018-3557751', updatedAt: 1730300000000 },
+  { id: 'v-kk2-2', locationId: 'kk2', name: 'Nasi Campur', status: 'Free', requirement: 'Can collect this Friday', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk3-1', locationId: 'kk3', name: 'Cafe Vendor (Bulk Supplier)', status: 'Follow Up', requirement: 'Contact boss, he might sell us many kg', contact: '019-6769527', updatedAt: 1730300000000 },
+  { id: 'v-kk4-1', locationId: 'kk4', name: 'Ayam Gunting 4K', status: 'Paid', requirement: 'Purchase arrangement', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk6-1', locationId: 'kk6', name: 'Nasi Ayam', status: 'Free', requirement: 'Needs container replacement. Collect anytime (told them Friday)', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk6-2', locationId: 'kk6', name: 'Nasi Campur', status: 'Follow Up', requirement: 'Need to ask their boss', contact: '019-2234282', updatedAt: 1730300000000 },
+  { id: 'v-kk6-3', locationId: 'kk6', name: 'Ayam Gunting', status: 'Follow Up', requirement: 'Closed today — follow up next visit', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk7-1', locationId: 'kk7', name: 'Nasi Kukus', status: 'Paid', requirement: 'Needs container replacement — Purchase', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk7-2', locationId: 'kk7', name: 'Ayam Gunting', status: 'Follow Up', requirement: 'Tak sure, need to ask boss at night', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk8-1', locationId: 'kk8', name: 'Right-side Nasi Campur', status: 'Paid', requirement: 'Come pick up at November', contact: '010-2292690 / 018-3819914', updatedAt: 1730300000000 },
+  { id: 'v-kk8-2', locationId: 'kk8', name: 'Chicken Cutlet', status: 'Paid', requirement: 'Pick up Friday', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk11-1', locationId: 'kk11', name: 'Nasi Campur', status: 'Free', requirement: 'Requires clean containers', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk11-2', locationId: 'kk11', name: 'Shawarma', status: 'Free', requirement: 'Available next Friday', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk11-3', locationId: 'kk11', name: 'Ayam Gunting Store', status: 'Free', requirement: 'Free collection (only if boss is absent)', contact: '', updatedAt: 1730300000000 },
+  { id: 'v-kk12-1', locationId: 'kk12', name: 'Nasi Kandar', status: 'Paid', requirement: 'End of the month — Purchase', contact: '', updatedAt: 1730300000000 }
+];
+
 let memoryVendors = null;
 
 export default async function handler(req, res) {
@@ -20,15 +38,22 @@ export default async function handler(req, res) {
     try {
       if (kvUrl && kvToken) {
         const kvRes = await fetch(`${kvUrl}/get/uco_vendors`, {
-          headers: { Authorization: `Bearer ${kvToken}` }
+          headers: { Authorization: `Bearer ${kvToken}` },
+          cache: 'no-store'
         });
         const kvData = await kvRes.json();
-        const vendors = kvData.result ? JSON.parse(kvData.result) : (memoryVendors || []);
+        let vendors = SEED_VENDORS;
+        if (kvData.result) {
+          try {
+            const parsed = JSON.parse(kvData.result);
+            if (Array.isArray(parsed) && parsed.length > 0) vendors = parsed;
+          } catch (_) {}
+        }
         return res.status(200).json(vendors);
       }
-      return res.status(200).json(memoryVendors || []);
+      return res.status(200).json(memoryVendors && memoryVendors.length > 0 ? memoryVendors : SEED_VENDORS);
     } catch (e) {
-      return res.status(200).json(memoryVendors || []);
+      return res.status(200).json(SEED_VENDORS);
     }
   }
 
@@ -39,15 +64,21 @@ export default async function handler(req, res) {
       let updatedVendors = [];
 
       if (Array.isArray(payload)) {
-        updatedVendors = payload;
+        updatedVendors = payload.length > 0 ? payload : SEED_VENDORS;
       } else if (payload && payload.id) {
-        let current = memoryVendors || [];
+        let current = memoryVendors && memoryVendors.length > 0 ? memoryVendors : [...SEED_VENDORS];
         if (kvUrl && kvToken) {
           const kvRes = await fetch(`${kvUrl}/get/uco_vendors`, {
-            headers: { Authorization: `Bearer ${kvToken}` }
+            headers: { Authorization: `Bearer ${kvToken}` },
+            cache: 'no-store'
           });
           const kvData = await kvRes.json();
-          current = kvData.result ? JSON.parse(kvData.result) : current;
+          if (kvData.result) {
+            try {
+              const parsed = JSON.parse(kvData.result);
+              if (Array.isArray(parsed) && parsed.length > 0) current = parsed;
+            } catch (_) {}
+          }
         }
 
         if (payload._deleted) {
@@ -61,6 +92,8 @@ export default async function handler(req, res) {
           }
           updatedVendors = current;
         }
+      } else {
+        return res.status(400).json({ error: 'Invalid payload' });
       }
 
       memoryVendors = updatedVendors;
