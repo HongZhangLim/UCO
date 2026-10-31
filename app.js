@@ -246,18 +246,6 @@ const DEFAULT_RECORDS = [
     notes: 'Week 3 collection',
     photo: '',
     timestamp: 1792731600000
-  },
-  {
-    id: 'seed-1',
-    locationId: 'kk11',
-    vendorId: 'v-kk11-1',
-    vendorName: 'Nasi Campur',
-    kg: 18.5,
-    collector: 'Mingdao',
-    tag: 'Free Donation',
-    notes: 'Nasi Campur donation with swapped clean container',
-    photo: '',
-    timestamp: 1792555200000
   }
 ];
 
@@ -391,6 +379,8 @@ function initStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     records = raw ? JSON.parse(raw) : DEFAULT_RECORDS;
+    // Purge mock seed-1
+    records = records.filter(r => r.id !== 'seed-1');
     // Merge any default records not yet in local storage
     DEFAULT_RECORDS.forEach(defRec => {
       if (!records.some(r => r.id === defRec.id)) {
@@ -461,7 +451,9 @@ async function syncWithCloud() {
         const recordMap = new Map();
         records.forEach(r => recordMap.set(r.id, r));
         remote.forEach(r => recordMap.set(r.id, r));
-        records = Array.from(recordMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+        records = Array.from(recordMap.values())
+          .filter(r => r.id !== 'seed-1')
+          .sort((a, b) => a.timestamp - b.timestamp);
         saveRecordsStorage();
       }
     }
@@ -862,6 +854,7 @@ function updateUI() {
           <span class="activity-meta">${escapeHtml(r.collector)} · ${dateStr} ${r.notes ? '· ' + escapeHtml(r.notes) : ''}</span>
         </div>
         <span class="activity-kg">+${r.kg.toFixed(1)}</span>
+        <button type="button" class="activity-delete-btn" data-delete-id="${r.id}" title="Delete record" aria-label="Delete record">×</button>
       </li>
     `;
   }).join('');
@@ -875,6 +868,25 @@ function updateUI() {
         const loc = LOCATIONS_MAP[rec.locationId] || { code: rec.locationId };
         const vTag = rec.vendorName ? ` (${rec.vendorName})` : '';
         openLightbox(rec.photo, `${loc.code}${vTag} — ${rec.kg} kg by ${rec.collector}`);
+      }
+    });
+  });
+
+  // Attach Record Delete handlers
+  activityListEl.querySelectorAll('.activity-delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const recId = btn.dataset.deleteId;
+      const rec = records.find(r => r.id === recId);
+      if (!rec) return;
+      const loc = LOCATIONS_MAP[rec.locationId] || { code: rec.locationId };
+      const stallLabel = rec.vendorName ? ` (${rec.vendorName})` : '';
+      if (confirm(`Delete pickup record: ${rec.kg} kg at ${loc.code}${stallLabel}?`)) {
+        records = records.filter(r => r.id !== recId);
+        saveRecordsStorage();
+        updateUI();
+        pushRecordToCloud({ id: recId, _deleted: true });
+        showToast('Pickup record deleted');
       }
     });
   });

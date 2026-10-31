@@ -610,6 +610,28 @@ main {
   flex-shrink: 0;
 }
 
+.activity-delete-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-tertiary);
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 6px;
+  transition: all 180ms ease;
+  line-height: 1;
+}
+
+.activity-delete-btn:active, .activity-delete-btn:hover {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
 /* Cloud Sync Card */
 .card-sync {
   margin-top: 18px;

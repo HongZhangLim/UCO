@@ -26,18 +26,6 @@ let memoryStore = [
     notes: 'Week 3 collection',
     photo: '',
     timestamp: 1792731600000
-  },
-  {
-    id: 'seed-1',
-    locationId: 'kk11',
-    vendorId: 'v-kk11-1',
-    vendorName: 'Nasi Campur',
-    kg: 18.5,
-    collector: 'Mingdao',
-    tag: 'Free Donation',
-    notes: 'Nasi Campur donation with swapped clean container',
-    photo: '',
-    timestamp: 1730100000000
   }
 ];
 
@@ -74,20 +62,50 @@ export default async function handler(req, res) {
           cache: 'no-store'
         });
         const kvData = await kvRes.json();
-        const records = kvData.result ? JSON.parse(kvData.result) : memoryStore;
+        let records = kvData.result ? JSON.parse(kvData.result) : memoryStore;
+        records = records.filter(r => r.id !== 'seed-1');
         return res.status(200).json(records);
       }
-      return res.status(200).json(memoryStore);
+      return res.status(200).json(memoryStore.filter(r => r.id !== 'seed-1'));
     } catch (e) {
-      return res.status(200).json(memoryStore);
+      return res.status(200).json(memoryStore.filter(r => r.id !== 'seed-1'));
     }
   }
 
-  // POST /api/records — Append a new pickup
+  // POST /api/records — Append or delete a pickup
   if (req.method === 'POST') {
     try {
       const newRecord = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (!newRecord || !newRecord.locationId || !newRecord.kg) {
+      if (!newRecord || !newRecord.id) {
+        return res.status(400).json({ error: 'Missing record id' });
+      }
+
+      // Handle record deletion
+      if (newRecord._deleted || newRecord.action === 'delete') {
+        if (kvUrl && kvToken) {
+          const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
+            headers: { Authorization: `Bearer ${kvToken}` },
+            cache: 'no-store'
+          });
+          const kvData = await kvRes.json();
+          let records = kvData.result ? JSON.parse(kvData.result) : [...memoryStore];
+          records = records.filter(r => r.id !== newRecord.id && r.id !== 'seed-1');
+          await fetch(`${kvUrl}/set/uco_records`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${kvToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(JSON.stringify(records))
+          });
+          return res.status(200).json({ success: true, count: records.length });
+        } else {
+          memoryStore = memoryStore.filter(r => r.id !== newRecord.id && r.id !== 'seed-1');
+          return res.status(200).json({ success: true, count: memoryStore.length });
+        }
+      }
+
+      if (!newRecord.locationId || !newRecord.kg) {
         return res.status(400).json({ error: 'Invalid record data' });
       }
 
@@ -106,6 +124,7 @@ export default async function handler(req, res) {
         });
         const kvData = await kvRes.json();
         let records = kvData.result ? JSON.parse(kvData.result) : [...memoryStore];
+        records = records.filter(r => r.id !== 'seed-1');
 
         // Deduplicate and append
         const exists = records.some(r => r.id === newRecord.id);
@@ -123,6 +142,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ success: true, count: records.length });
       } else {
+        memoryStore = memoryStore.filter(r => r.id !== 'seed-1');
         const exists = memoryStore.some(r => r.id === newRecord.id);
         if (!exists) memoryStore.push(newRecord);
         return res.status(200).json({ success: true, count: memoryStore.length });
