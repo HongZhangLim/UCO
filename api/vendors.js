@@ -30,8 +30,19 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Universal KV / Upstash Credential Resolver (supports KV, UPSTASH, STORAGE or custom prefix)
+  const kvUrl = process.env.KV_REST_API_URL ||
+                process.env.UPSTASH_REDIS_REST_URL ||
+                process.env.STORAGE_REST_API_URL ||
+                process.env.KV_URL ||
+                process.env.STORAGE_URL ||
+                Object.entries(process.env).find(([k, v]) => (k.endsWith('_URL') || k.endsWith('_REST_API_URL')) && typeof v === 'string' && v.startsWith('http'))?.[1];
+
+  const kvToken = process.env.KV_REST_API_TOKEN ||
+                  process.env.UPSTASH_REDIS_REST_TOKEN ||
+                  process.env.STORAGE_REST_API_TOKEN ||
+                  process.env.STORAGE_TOKEN ||
+                  Object.entries(process.env).find(([k, v]) => (k.endsWith('_TOKEN') || k.endsWith('_REST_API_TOKEN')) && typeof v === 'string' && v.length > 15)?.[1];
 
   // GET /api/vendors
   if (req.method === 'GET') {
