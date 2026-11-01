@@ -16,30 +16,30 @@ const DEFAULT_PIN = '2026';
 // 100% Verified UM Campus Coordinates (OpenStreetMap)
 const UM_LOCATIONS = [
   // 13 Residential Colleges (KK1 - KK13)
-  { id: 'kk1', name: 'KK1 (Kolej Pertama - ASTAR)', code: 'KK1', type: 'residential', coords: [3.1174, 101.6594] },
-  { id: 'kk2', name: 'KK2 (Tuanku Bahiyah)', code: 'KK2', type: 'residential', coords: [3.1176, 101.6572] },
-  { id: 'kk3', name: 'KK3 (Tuanku Kurshiah)', code: 'KK3', type: 'residential', coords: [3.1241, 101.6505] },
-  { id: 'kk4', name: 'KK4 (Bestari)', code: 'KK4', type: 'residential', coords: [3.1250, 101.6494] },
-  { id: 'kk5', name: 'KK5 (Dayasari)', code: 'KK5', type: 'residential', coords: [3.1275, 101.6585] },
-  { id: 'kk6', name: 'KK6 (Ibnu Sina)', code: 'KK6', type: 'residential', coords: [3.1150, 101.6550] },
-  { id: 'kk7', name: 'KK7 (Za\'ba)', code: 'KK7', type: 'residential', coords: [3.1262, 101.6506] },
-  { id: 'kk8', name: 'KK8 (Kinabalu)', code: 'KK8', type: 'residential', coords: [3.1299, 101.6493] },
-  { id: 'kk9', name: 'KK9 (Tun Syed Zahiruddin)', code: 'KK9', type: 'residential', coords: [3.1212, 101.6454] },
-  { id: 'kk10', name: 'KK10 (Tun Ahmad Zaidi)', code: 'KK10', type: 'residential', coords: [3.1311, 101.6504] },
-  { id: 'kk11', name: 'KK11 (Raja Ungku Aziz)', code: 'KK11', type: 'residential', coords: [3.1295, 101.6609] },
-  { id: 'kk12', name: 'KK12 (Raja Dr. Nazrin Shah)', code: 'KK12', type: 'residential', coords: [3.1254, 101.6607] },
-  { id: 'kk13', name: 'KK13 (Kolej Ke-13 / PJ Seksyen 17)', code: 'KK13', type: 'residential', coords: [3.1203, 101.6403] },
+  { id: 'kk1', name: 'KK1', code: 'KK1', type: 'residential', coords: [3.1174, 101.6594] },
+  { id: 'kk2', name: 'KK2', code: 'KK2', type: 'residential', coords: [3.1176, 101.6572] },
+  { id: 'kk3', name: 'KK3', code: 'KK3', type: 'residential', coords: [3.1241, 101.6505] },
+  { id: 'kk4', name: 'KK4', code: 'KK4', type: 'residential', coords: [3.1250, 101.6494] },
+  { id: 'kk5', name: 'KK5', code: 'KK5', type: 'residential', coords: [3.1275, 101.6585] },
+  { id: 'kk6', name: 'KK6', code: 'KK6', type: 'residential', coords: [3.1150, 101.6550] },
+  { id: 'kk7', name: 'KK7', code: 'KK7', type: 'residential', coords: [3.1262, 101.6506] },
+  { id: 'kk8', name: 'KK8', code: 'KK8', type: 'residential', coords: [3.1299, 101.6493] },
+  { id: 'kk9', name: 'KK9', code: 'KK9', type: 'residential', coords: [3.1212, 101.6454] },
+  { id: 'kk10', name: 'KK10', code: 'KK10', type: 'residential', coords: [3.1311, 101.6504] },
+  { id: 'kk11', name: 'KK11', code: 'KK11', type: 'residential', coords: [3.1295, 101.6609] },
+  { id: 'kk12', name: 'KK12', code: 'KK12', type: 'residential', coords: [3.1254, 101.6607] },
+  { id: 'kk13', name: 'KK13', code: 'KK13', type: 'residential', coords: [3.1203, 101.6403] },
 
   // Key Faculty Cafeterias
-  { id: 'edufac', name: 'Kafeteria Fakulti Pendidikan', code: 'Edu Fac', type: 'faculty', coords: [3.1205, 101.6524] },
-  { id: 'fcsit', name: 'FSKTM (Sains Komputer)', code: 'FCSIT', type: 'faculty', coords: [3.1286, 101.6505] },
-  { id: 'fk', name: 'Kantin Fakulti Kejuruteraan', code: 'FK', type: 'faculty', coords: [3.1182, 101.6564] },
-  { id: 'fsss', name: 'Fakulti Sastera & Sains Sosial', code: 'FSSS', type: 'faculty', coords: [3.1211, 101.6519] },
-  { id: 'fpe', name: 'Fakulti Perniagaan & Ekonomi', code: 'FPE', type: 'faculty', coords: [3.1186, 101.6528] },
-  { id: 'fs', name: 'Fakulti Sains', code: 'FS', type: 'faculty', coords: [3.1241, 101.6538] },
-  { id: 'fab', name: 'Fakulti Alam Bina', code: 'FAB', type: 'faculty', coords: [3.1163, 101.6552] },
-  { id: 'law', name: 'Fakulti Undang-Undang', code: 'Law', type: 'faculty', coords: [3.1180, 101.6612] },
-  { id: 'med', name: 'Fakulti Perubatan', code: 'Med', type: 'faculty', coords: [3.1152, 101.6529] }
+  { id: 'edufac', name: 'Education', code: 'Edu Fac', type: 'faculty', coords: [3.1205, 101.6524] },
+  { id: 'fcsit', name: 'Computer Science', code: 'FCSIT', type: 'faculty', coords: [3.1286, 101.6505] },
+  { id: 'fk', name: 'Engineering', code: 'FK', type: 'faculty', coords: [3.1182, 101.6564] },
+  { id: 'fsss', name: 'Arts & Social', code: 'FSSS', type: 'faculty', coords: [3.1211, 101.6519] },
+  { id: 'fpe', name: 'Business & Econ', code: 'FPE', type: 'faculty', coords: [3.1186, 101.6528] },
+  { id: 'fs', name: 'Science', code: 'FS', type: 'faculty', coords: [3.1241, 101.6538] },
+  { id: 'fab', name: 'Built Environment', code: 'FAB', type: 'faculty', coords: [3.1163, 101.6552] },
+  { id: 'law', name: 'Law', code: 'Law', type: 'faculty', coords: [3.1180, 101.6612] },
+  { id: 'med', name: 'Medicine', code: 'Med', type: 'faculty', coords: [3.1152, 101.6529] }
 ];
 
 const LOCATIONS_MAP = Object.fromEntries(UM_LOCATIONS.map(l => [l.id, l]));
@@ -669,7 +669,7 @@ function renderVendors(filter = currentVendorFilter) {
         <div class="kk-group-header">
           <div class="kk-title-wrap">
             <span class="kk-code">${loc.code}</span>
-            <span class="kk-full-name">${loc.name}</span>
+            ${loc.type === 'faculty' && loc.name !== loc.code ? `<span class="kk-full-name">${escapeHtml(loc.name)}</span>` : ''}
           </div>
           <button type="button" class="kk-add-btn" data-loc-id="${locId}">+ Add</button>
         </div>
@@ -708,7 +708,7 @@ function updateVendorSelectOptions(locationId, preselectedVendorId = '') {
   // Default option
   const defaultOpt = document.createElement('option');
   defaultOpt.value = '';
-  defaultOpt.textContent = '— General / Unspecified Stall —';
+  defaultOpt.textContent = 'General Stall (Unspecified)';
   vendorSelect.appendChild(defaultOpt);
 
   const locVendors = vendors.filter(v => v.locationId === locationId);
@@ -944,9 +944,10 @@ function updateUI() {
         <p style="font-size:12px;color:#8E8E93;margin-bottom:8px;">No cafe stalls registered yet.</p>
       `;
 
+      const popupTitle = loc.type === 'residential' || loc.name === loc.code ? loc.code : `${loc.code} — ${escapeHtml(loc.name)}`;
       const popupContent = `
         <div style="min-width:200px;">
-          <div class="map-popup-title">${loc.code} — ${escapeHtml(loc.name)}</div>
+          <div class="map-popup-title">${popupTitle}</div>
           <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;">
             ${total.toFixed(1)} kg collected
           </div>
@@ -1032,26 +1033,28 @@ function clearPhotoInput() {
 function setupApp() {
   // Populate Location Dropdown in Pickup Sheet
   const resGroup = document.createElement('optgroup');
-  resGroup.label = 'Residential Colleges (KK1 - KK13)';
+  resGroup.label = 'Residential Colleges';
   const facGroup = document.createElement('optgroup');
   facGroup.label = 'Faculty Cafeterias';
 
   // Populate Location Dropdown in Vendor Sheet
   const vendorResGroup = document.createElement('optgroup');
-  vendorResGroup.label = 'Residential Colleges (KK1 - KK13)';
+  vendorResGroup.label = 'Residential Colleges';
   const vendorFacGroup = document.createElement('optgroup');
   vendorFacGroup.label = 'Faculty Cafeterias';
 
   UM_LOCATIONS.forEach(loc => {
+    const label = loc.type === 'residential' || loc.name === loc.code ? loc.code : `${loc.code} — ${loc.name}`;
+
     const opt = document.createElement('option');
     opt.value = loc.id;
-    opt.textContent = `${loc.code} — ${loc.name}`;
+    opt.textContent = label;
     if (loc.type === 'residential') resGroup.appendChild(opt);
     else facGroup.appendChild(opt);
 
     const vOpt = document.createElement('option');
     vOpt.value = loc.id;
-    vOpt.textContent = `${loc.code} — ${loc.name}`;
+    vOpt.textContent = label;
     if (loc.type === 'residential') vendorResGroup.appendChild(vOpt);
     else vendorFacGroup.appendChild(vOpt);
   });

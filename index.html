@@ -118,12 +118,12 @@
         <!-- Cloud Sync Config Card -->
         <div class="card card-sync">
           <div class="sync-card-header">
-            <span class="sync-card-title">Cloud Database Sync</span>
+            <span class="sync-card-title">Cloud Sync</span>
             <span class="sync-pill" id="syncStatusBadge">Connected</span>
           </div>
-          <p class="sync-card-desc">All 9 team members share a unified database across phones.</p>
+          <p class="sync-card-desc">Real-time shared database across team phones.</p>
           <div class="sync-input-group">
-            <input type="url" id="cloudEndpointInput" placeholder="https://your-worker.workers.dev/api" aria-label="Cloud Endpoint URL">
+            <input type="url" id="cloudEndpointInput" placeholder="https://uco.vercel.app/api/records" aria-label="Cloud Endpoint URL">
             <button type="button" id="saveEndpointBtn" class="sync-save-btn">Save</button>
           </div>
           <div class="sync-input-group" style="margin-top: 8px;">
@@ -190,7 +190,7 @@
       </div>
 
       <div class="form-section">
-        <label for="locationSelect" class="form-label">Location (KK / Faculty)</label>
+        <label for="locationSelect" class="form-label">College / Faculty</label>
         <div class="select-wrapper">
           <select id="locationSelect" required aria-label="Select College or Faculty"></select>
         </div>
@@ -198,7 +198,7 @@
 
       <!-- Specific Vendor / Stall Picker -->
       <div class="form-section">
-        <label for="vendorSelect" class="form-label">Cafe Vendor / Stall</label>
+        <label for="vendorSelect" class="form-label">Vendor Stall</label>
         <div class="select-wrapper">
           <select id="vendorSelect" required aria-label="Select Cafe Vendor"></select>
         </div>
@@ -207,12 +207,12 @@
 
       <!-- Collection Date Picker for Current or Backdated Pickups -->
       <div class="form-section">
-        <label for="dateInput" class="form-label">Collection Date</label>
+        <label for="dateInput" class="form-label">Date</label>
         <input type="date" id="dateInput" required aria-label="Collection Date">
       </div>
 
       <div class="form-section">
-        <label for="weightInput" class="form-label">Weight (kg)</label>
+        <label for="weightInput" class="form-label">Weight</label>
         <div class="weight-input-row">
           <input type="number" id="weightInput" inputmode="decimal" step="0.1" min="0.1" max="500" value="15.0" required aria-label="Weight in kilograms">
           <span class="weight-unit">kg</span>
@@ -228,7 +228,7 @@
 
       <!-- Photo Proof Attachment -->
       <div class="form-section">
-        <label class="form-label">Photo Proof <span class="form-sublabel">(Scale / Container)</span></label>
+        <label class="form-label">Photo Proof <span class="form-sublabel">(Optional scale proof)</span></label>
         <div class="photo-dropzone" id="photoDropzone">
           <input type="file" id="photoInput" accept="image/*" capture="environment" aria-label="Take or Upload Photo Proof">
           <div class="photo-prompt" id="photoPrompt">
@@ -236,7 +236,7 @@
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
             </svg>
-            <span>Tap to snap photo or upload proof</span>
+            <span>Tap to attach scale proof</span>
           </div>
           <div class="photo-preview-box" id="photoPreviewBox" hidden>
             <img id="photoPreviewImg" alt="Scale Proof Preview">
@@ -246,13 +246,13 @@
       </div>
 
       <div class="form-section">
-        <label class="form-label">Payment / Status Tag</label>
+        <label class="form-label">Collection Tag</label>
         <div class="tag-row" id="tagChips"></div>
       </div>
 
       <div class="form-section">
         <label for="notesInput" class="form-label">Notes (Optional)</label>
-        <input type="text" id="notesInput" maxlength="140" placeholder="e.g. Swapped clean container" aria-label="Pickup notes">
+        <input type="text" id="notesInput" maxlength="140" placeholder="e.g. Swapped clean 18L container" aria-label="Pickup notes">
       </div>
 
       <button type="submit" id="submitPickupBtn" class="sheet-submit-btn">Save Pickup</button>
@@ -279,7 +279,7 @@
       </div>
 
       <div class="form-section">
-        <label for="vendorNameInput" class="form-label">Stall / Vendor Name</label>
+        <label for="vendorNameInput" class="form-label">Stall Name</label>
         <input type="text" id="vendorNameInput" placeholder="e.g. Western Food, Nasi Ayam" required aria-label="Vendor Name">
       </div>
 
@@ -294,13 +294,13 @@
       </div>
 
       <div class="form-section">
-        <label for="vendorRequirementInput" class="form-label">Requirement &amp; Constraints</label>
-        <textarea id="vendorRequirementInput" rows="2" placeholder="e.g. Needs clean container replacement, collect Friday only, RM 2.50/kg" aria-label="Special Requirements"></textarea>
+        <label for="vendorRequirementInput" class="form-label">Requirements &amp; Pricing</label>
+        <textarea id="vendorRequirementInput" rows="2" placeholder="e.g. Container swap, Friday pickup, RM 2.50/kg" aria-label="Special Requirements"></textarea>
       </div>
 
       <div class="form-section">
-        <label for="vendorContactInput" class="form-label">Contact Person / Phone (Optional)</label>
-        <input type="text" id="vendorContactInput" placeholder="e.g. 018-3557751 (Boss)" aria-label="Contact Phone">
+        <label for="vendorContactInput" class="form-label">Contact Phone (Optional)</label>
+        <input type="text" id="vendorContactInput" placeholder="e.g. 018-3557751" aria-label="Contact Phone">
       </div>
 
       <div class="vendor-form-actions">
