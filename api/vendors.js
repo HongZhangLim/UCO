@@ -1,5 +1,16 @@
 // Vercel Serverless Function: /api/vendors
-// Shared database for cafe vendor directory across teammates.
+// Shared cafe vendor directory, stored in Upstash / Vercel KV.
+//
+// Storage layout:
+//   HASH uco:vendors          field = vendor id, value = vendor JSON
+//   SET  uco:vendors_deleted  ids deleted (stops other phones re-uploading them)
+//   STR  uco:vendors_seeded   set once the seed / legacy list has been imported
+import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health } from './_kv.js';
+
+const HASH = 'uco:vendors';
+const DELETED = 'uco:vendors_deleted';
+const SEEDED = 'uco:vendors_seeded';
+const LEGACY_KEY = 'uco_vendors';
 
 const SEED_VENDORS = [
   { id: 'v-kk2-1', locationId: 'kk2', name: 'Western Food', status: 'Paid', requirement: 'Offer ~RM 2.50/kg (normally sell RM 3.00/kg). Need to confirm with boss first', contact: '018-3557751', updatedAt: 1730300000000 },
@@ -20,117 +31,109 @@ const SEED_VENDORS = [
   { id: 'v-kk12-1', locationId: 'kk12', name: 'Nasi Kandar', status: 'Paid', requirement: 'End of the month — Purchase', contact: '', updatedAt: 1730300000000 }
 ];
 
-let memoryVendors = null;
+let seeded = false;
+
+async function ensureSeeded(kv) {
+  if (seeded) return;
+  if (!(await cmd(kv, 'EXISTS', SEEDED))) {
+    let list = SEED_VENDORS;
+    const legacy = await cmd(kv, 'GET', LEGACY_KEY).catch(() => null);
+    if (typeof legacy === 'string' && legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+      } catch (_) {}
+    }
+    for (const v of list) {
+      if (v && v.id) await cmd(kv, 'HSETNX', HASH, v.id, JSON.stringify(v));
+    }
+    await cmd(kv, 'SET', SEEDED, '1');
+  }
+  seeded = true;
+}
+
+// Last-write-wins by updatedAt. Returns 'deleted' | 'stale' | 'saved'
+async function upsertVendor(kv, v) {
+  const id = String(v.id);
+  if (await cmd(kv, 'SISMEMBER', DELETED, id)) return 'deleted';
+  const existingRaw = await cmd(kv, 'HGET', HASH, id);
+  if (existingRaw) {
+    try {
+      const existing = JSON.parse(existingRaw);
+      if ((existing.updatedAt || 0) > (v.updatedAt || 0)) return 'stale';
+    } catch (_) {}
+  }
+  const clean = {
+    id,
+    locationId: String(v.locationId || ''),
+    name: String(v.name || ''),
+    status: v.status || '',
+    requirement: v.requirement || '',
+    contact: v.contact || '',
+    updatedAt: Number(v.updatedAt) || Date.now()
+  };
+  await cmd(kv, 'HSET', HASH, id, JSON.stringify(clean));
+  return 'saved';
+}
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setCors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  const kv = resolveKv();
+
+  if (req.method === 'GET' && req.query && req.query.health) {
+    const h = await health(kv, HASH);
+    return res.status(h.ok ? 200 : 503).json(h);
   }
 
-  // Universal KV / Upstash Credential Resolver (supports KV, UPSTASH, STORAGE or custom prefix)
-  const kvUrl = process.env.KV_REST_API_URL ||
-                process.env.UPSTASH_REDIS_REST_URL ||
-                process.env.STORAGE_REST_API_URL ||
-                process.env.KV_URL ||
-                process.env.STORAGE_URL ||
-                Object.entries(process.env).find(([k, v]) => (k.endsWith('_URL') || k.endsWith('_REST_API_URL')) && typeof v === 'string' && v.startsWith('http'))?.[1];
+  if (!kv) {
+    return res.status(503).json({ error: 'Cloud storage not configured on this deployment (no Upstash/KV env vars)' });
+  }
 
-  const kvToken = process.env.KV_REST_API_TOKEN ||
-                  process.env.UPSTASH_REDIS_REST_TOKEN ||
-                  process.env.STORAGE_REST_API_TOKEN ||
-                  process.env.STORAGE_TOKEN ||
-                  Object.entries(process.env).find(([k, v]) => (k.endsWith('_TOKEN') || k.endsWith('_REST_API_TOKEN')) && typeof v === 'string' && v.length > 15)?.[1];
+  try {
+    await ensureSeeded(kv);
 
-  // GET /api/vendors
-  if (req.method === 'GET') {
-    try {
-      if (kvUrl && kvToken) {
-        const kvRes = await fetch(`${kvUrl}/get/uco_vendors`, {
-          headers: { Authorization: `Bearer ${kvToken}` },
-          cache: 'no-store'
-        });
-        const kvData = await kvRes.json();
-        let vendors = SEED_VENDORS;
-        if (kvData.result) {
-          try {
-            const parsed = JSON.parse(kvData.result);
-            if (Array.isArray(parsed) && parsed.length > 0) vendors = parsed;
-          } catch (_) {}
-        }
-        return res.status(200).json(vendors);
+    // GET /api/vendors       -> [vendors]
+    // GET /api/vendors?v=2   -> { vendors, deleted }
+    if (req.method === 'GET') {
+      const vendors = await hgetallParsed(kv, HASH);
+      if (req.query && req.query.v === '2') {
+        const deleted = (await cmd(kv, 'SMEMBERS', DELETED)) || [];
+        return res.status(200).json({ vendors, deleted });
       }
-      return res.status(200).json(memoryVendors && memoryVendors.length > 0 ? memoryVendors : SEED_VENDORS);
-    } catch (e) {
-      return res.status(200).json(SEED_VENDORS);
+      return res.status(200).json(vendors);
     }
-  }
 
-  const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
-
-  // POST /api/vendors (Sync or update vendor)
-  if (req.method === 'POST') {
-    try {
-      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      let updatedVendors = [];
+    if (req.method === 'POST') {
+      const payload = parseBody(req);
 
       if (Array.isArray(payload)) {
-        updatedVendors = payload.length > 0 ? payload : SEED_VENDORS;
-      } else if (payload && payload.id) {
-        let current = memoryVendors && memoryVendors.length > 0 ? memoryVendors : [...SEED_VENDORS];
-        if (kvUrl && kvToken) {
-          const kvRes = await fetch(`${kvUrl}/get/uco_vendors`, {
-            headers: { Authorization: `Bearer ${kvToken}` },
-            cache: 'no-store'
-          });
-          const kvData = await kvRes.json();
-          if (kvData.result) {
-            try {
-              const parsed = JSON.parse(kvData.result);
-              if (Array.isArray(parsed) && parsed.length > 0) current = parsed;
-            } catch (_) {}
-          }
-        }
-
-        if (payload._deleted) {
-          if (String(payload.pin || '') !== ADMIN_PIN) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid Security PIN' });
-          }
-          updatedVendors = current.filter(v => v.id !== payload.id);
-        } else {
-          const idx = current.findIndex(v => v.id === payload.id);
-          if (idx >= 0) {
-            current[idx] = payload;
-          } else {
-            current.push(payload);
-          }
-          updatedVendors = current;
-        }
-      } else {
-        return res.status(400).json({ error: 'Invalid payload' });
+        const results = {};
+        for (const v of payload) if (v && v.id) results[v.id] = await upsertVendor(kv, v);
+        return res.status(200).json({ success: true, results });
       }
 
-      memoryVendors = updatedVendors;
+      if (!payload || !payload.id) return res.status(400).json({ error: 'Invalid payload' });
 
-      if (kvUrl && kvToken) {
-        await fetch(`${kvUrl}/set/uco_vendors`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${kvToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(JSON.stringify(updatedVendors))
-        });
+      if (payload._deleted) {
+        const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+        if (String(payload.pin || '') !== ADMIN_PIN) {
+          return res.status(401).json({ error: 'Unauthorized: Invalid Security PIN' });
+        }
+        await cmd(kv, 'SADD', DELETED, String(payload.id));
+        await cmd(kv, 'HDEL', HASH, String(payload.id));
+        return res.status(200).json({ success: true, deleted: payload.id });
       }
 
-      return res.status(200).json({ success: true, count: updatedVendors.length });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+      const result = await upsertVendor(kv, payload);
+      if (result === 'deleted') return res.status(410).json({ error: 'Vendor was deleted', deleted: payload.id });
+      return res.status(200).json({ success: true, result });
     }
-  }
 
-  return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    console.error('[api/vendors]', err);
+    return res.status(500).json({ error: err.message });
+  }
 }

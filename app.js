@@ -441,88 +441,194 @@ function saveVendorsStorage() {
 }
 
 // Cloud Synchronization
+// localStorage is the source of truth until the server CONFIRMS a write.
+// Every sync re-uploads any local pickup/vendor the server doesn't have yet, so a
+// failed save (offline, server error, storage outage) heals itself automatically.
+const PENDING_DELETES_KEY = 'uco.pending_deletes';
+let syncInFlight = false;
+
+function loadPendingDeletes() {
+  try { return JSON.parse(localStorage.getItem(PENDING_DELETES_KEY)) || []; } catch (_) { return []; }
+}
+function savePendingDeletes(list) {
+  try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(list)); } catch (_) {}
+}
+function vendorsEndpointFor(ep) {
+  return ep.replace(/\/api\/records\/?$/, '/api/vendors');
+}
+function withQuery(url, q) {
+  return url + (url.includes('?') ? '&' : '?') + q;
+}
+
+function setSyncState(state, unsynced = 0) {
+  const online = state === 'live';
+  if (syncDot) syncDot.classList.toggle('offline', !online);
+  if (state === 'live') {
+    if (syncLabel) syncLabel.textContent = 'Live';
+    if (syncStatusBadge) syncStatusBadge.textContent = 'Connected';
+  } else if (state === 'pending') {
+    if (syncLabel) syncLabel.textContent = `${unsynced} not synced`;
+    if (syncStatusBadge) syncStatusBadge.textContent = `${unsynced} waiting to upload`;
+  } else {
+    if (syncLabel) syncLabel.textContent = 'Offline';
+    if (syncStatusBadge) syncStatusBadge.textContent = 'Offline (Saved on this phone)';
+  }
+}
+
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+// Upload one pickup. Returns 'ok' | 'gone' (deleted on server) | 'fail'
+async function pushRecordToCloud(record) {
+  if (!cloudEndpoint) return 'fail';
+  try {
+    const r = await postJson(cloudEndpoint, record);
+    if (r.ok) return 'ok';
+    if (r.status === 410) {
+      records = records.filter(x => x.id !== record.id);
+      saveRecordsStorage();
+      return 'gone';
+    }
+    console.warn('Pickup upload failed:', r.status, r.data && r.data.error);
+    return 'fail';
+  } catch (err) {
+    return 'fail';
+  }
+}
+
+// Upload one vendor. Returns 'ok' | 'gone' | 'fail'
+async function pushVendorToCloud(vendor) {
+  if (!cloudEndpoint) return 'fail';
+  try {
+    const r = await postJson(vendorsEndpointFor(cloudEndpoint), vendor);
+    if (r.ok) return 'ok';
+    if (r.status === 410) {
+      vendors = vendors.filter(v => v.id !== vendor.id);
+      saveVendorsStorage();
+      return 'gone';
+    }
+    console.warn('Vendor upload failed:', r.status, r.data && r.data.error);
+    return 'fail';
+  } catch (e) {
+    return 'fail';
+  }
+}
+
+// Queue a delete and try to send it now; retried on every sync until confirmed.
+async function deleteInCloud(kind, id, pin) {
+  const list = loadPendingDeletes().filter(d => !(d.kind === kind && d.id === id));
+  list.push({ kind, id, pin });
+  savePendingDeletes(list);
+  await flushPendingDeletes();
+}
+
+async function flushPendingDeletes() {
+  if (!cloudEndpoint) return;
+  const list = loadPendingDeletes();
+  if (!list.length) return;
+  const remaining = [];
+  for (const d of list) {
+    const url = d.kind === 'vendor' ? vendorsEndpointFor(cloudEndpoint) : cloudEndpoint;
+    try {
+      const r = await postJson(url, { id: d.id, _deleted: true, pin: d.pin });
+      if (r.ok) continue;
+      if (r.status === 401) {
+        showToast('Server rejected Team PIN — item restored');
+        continue; // drop it; the item comes back on next sync
+      }
+      remaining.push(d);
+    } catch (_) {
+      remaining.push(d);
+    }
+  }
+  savePendingDeletes(remaining);
+}
+
 async function syncWithCloud() {
   if (!cloudEndpoint) {
     if (syncStatusBadge) syncStatusBadge.textContent = 'Local Cache';
     return;
   }
+  if (syncInFlight) return;
+  syncInFlight = true;
 
   try {
-    // 1. Sync Records
-    const resRecords = await fetch(cloudEndpoint, { method: 'GET' });
-    if (resRecords.ok) {
-      const remote = await resRecords.json();
-      if (Array.isArray(remote)) {
-        const recordMap = new Map();
-        records.forEach(r => recordMap.set(r.id, r));
-        remote.forEach(r => recordMap.set(r.id, r));
-        records = Array.from(recordMap.values())
-          .filter(r => r.id !== 'seed-1')
-          .sort((a, b) => a.timestamp - b.timestamp);
-        saveRecordsStorage();
-      }
+    await flushPendingDeletes();
+    const pendingDeleteIds = new Set(loadPendingDeletes().map(d => d.id));
+    let unsynced = 0;
+
+    // 1. Records: merge remote into local, drop server-side deletions, upload local-only
+    const resRecords = await fetch(withQuery(cloudEndpoint, 'v=2'), { cache: 'no-store' });
+    if (!resRecords.ok) throw new Error('Records fetch failed: ' + resRecords.status);
+    const payload = await resRecords.json();
+    const remote = Array.isArray(payload) ? payload : (payload.records || []);
+    const deleted = new Set(Array.isArray(payload) ? [] : (payload.deleted || []));
+    const remoteIds = new Set(remote.map(r => r.id));
+
+    const recordMap = new Map();
+    records.forEach(r => recordMap.set(r.id, r));
+    remote.forEach(r => recordMap.set(r.id, r));
+    records = Array.from(recordMap.values())
+      .filter(r => r.id !== 'seed-1' && !deleted.has(r.id) && !pendingDeleteIds.has(r.id))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    saveRecordsStorage();
+
+    for (const r of records.filter(x => !remoteIds.has(x.id))) {
+      if ((await pushRecordToCloud(r)) === 'fail') unsynced++;
     }
 
-    // 2. Sync Vendors (if /api/vendors exists on same host)
-    const vendorsEndpoint = cloudEndpoint.replace(/\/api\/records\/?$/, '/api/vendors');
+    // 2. Vendors: newest updatedAt wins, drop deletions, upload local-only/newer
+    const vendorsEndpoint = vendorsEndpointFor(cloudEndpoint);
     if (vendorsEndpoint !== cloudEndpoint) {
       try {
-        const resVendors = await fetch(vendorsEndpoint, { method: 'GET' });
+        const resVendors = await fetch(withQuery(vendorsEndpoint, 'v=2'), { cache: 'no-store' });
         if (resVendors.ok) {
-          const remoteVendors = await resVendors.json();
-          if (Array.isArray(remoteVendors) && remoteVendors.length > 0) {
-            const vMap = new Map();
-            vendors.forEach(v => vMap.set(v.id, v));
-            remoteVendors.forEach(v => vMap.set(v.id, v));
-            vendors = Array.from(vMap.values());
-            saveVendorsStorage();
-            renderVendors();
-            updateVendorSelectOptions(locationSelect.value);
+          const vp = await resVendors.json();
+          const remoteVendors = Array.isArray(vp) ? vp : (vp.vendors || []);
+          const vDeleted = new Set(Array.isArray(vp) ? [] : (vp.deleted || []));
+          const remoteById = new Map(remoteVendors.map(v => [v.id, v]));
+
+          const vMap = new Map();
+          vendors.forEach(v => vMap.set(v.id, v));
+          remoteVendors.forEach(v => {
+            const local = vMap.get(v.id);
+            if (!local || (v.updatedAt || 0) >= (local.updatedAt || 0)) vMap.set(v.id, v);
+          });
+          vendors = Array.from(vMap.values())
+            .filter(v => !vDeleted.has(v.id) && !pendingDeleteIds.has(v.id));
+          saveVendorsStorage();
+
+          for (const v of vendors) {
+            const rv = remoteById.get(v.id);
+            if (!rv || (v.updatedAt || 0) > (rv.updatedAt || 0)) {
+              if ((await pushVendorToCloud(v)) === 'fail') unsynced++;
+            }
           }
+          renderVendors();
+          updateVendorSelectOptions(locationSelect.value);
         }
       } catch (ve) {
-        // Silent vendor sync fallback
+        console.warn('Vendor sync failed:', ve);
       }
     }
 
     updateUI();
-    if (syncDot) syncDot.classList.remove('offline');
-    if (syncLabel) syncLabel.textContent = 'Live';
-    if (syncStatusBadge) syncStatusBadge.textContent = 'Connected';
+    unsynced += loadPendingDeletes().length;
+    setSyncState(unsynced ? 'pending' : 'live', unsynced);
   } catch (err) {
-    if (syncDot) syncDot.classList.add('offline');
-    if (syncLabel) syncLabel.textContent = 'Offline';
-    if (syncStatusBadge) syncStatusBadge.textContent = 'Offline (Cached)';
-  }
-}
-
-async function pushRecordToCloud(record) {
-  if (!cloudEndpoint) return;
-  try {
-    await fetch(cloudEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    });
-    if (syncDot) syncDot.classList.remove('offline');
-    if (syncLabel) syncLabel.textContent = 'Live';
-  } catch (err) {
-    if (syncDot) syncDot.classList.add('offline');
-    if (syncLabel) syncLabel.textContent = 'Saved Locally';
-  }
-}
-
-async function pushVendorToCloud(vendor) {
-  if (!cloudEndpoint) return;
-  const vendorsEndpoint = cloudEndpoint.replace(/\/api\/records\/?$/, '/api/vendors');
-  try {
-    await fetch(vendorsEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(vendor)
-    });
-  } catch (e) {
-    // Local persistence will keep it safe
+    console.warn('Sync failed:', err);
+    updateUI();
+    setSyncState('offline');
+  } finally {
+    syncInFlight = false;
   }
 }
 
@@ -899,7 +1005,7 @@ function updateUI() {
       records = records.filter(r => r.id !== recId);
       saveRecordsStorage();
       updateUI();
-      pushRecordToCloud({ id: recId, _deleted: true, pin: inputPin.trim() });
+      deleteInCloud('record', recId, inputPin.trim());
       showToast('Pickup record deleted');
     });
   });
@@ -1186,7 +1292,13 @@ function setupApp() {
     const stallTitle = newRecord.vendorName ? ` (${newRecord.vendorName})` : '';
     showToast(`Saved ${newRecord.kg} kg at ${locTitle}${stallTitle}`);
 
-    pushRecordToCloud(newRecord);
+    const result = await pushRecordToCloud(newRecord);
+    if (result === 'ok') {
+      setSyncState('live');
+    } else if (cloudEndpoint) {
+      setSyncState('pending', 1);
+      showToast('Not uploaded yet — kept on this phone, will retry automatically');
+    }
   });
 
   // Sheet Controls
@@ -1289,7 +1401,7 @@ function setupApp() {
       closeVendorSheet();
 
       if (toDelete) {
-        pushVendorToCloud({ id: editId, _deleted: true, pin: inputPin.trim() });
+        deleteInCloud('vendor', editId, inputPin.trim());
         showToast(`Removed stall: ${toDelete.name}`);
       }
     });

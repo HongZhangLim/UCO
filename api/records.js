@@ -1,162 +1,120 @@
 // Vercel Serverless Function: /api/records
-// Handles real-time shared database for all 9 team members.
-// Uses Vercel KV / Upstash Redis if configured, otherwise falls back to memory.
+// Shared pickup database for the whole team, stored in Upstash / Vercel KV.
+//
+// Storage layout (atomic per record, no read-modify-write races):
+//   HASH uco:records         field = record id, value = record JSON
+//   SET  uco:records_deleted ids that were deleted (stops other phones re-uploading them)
+//
+// There is deliberately NO in-memory fallback: serverless memory is wiped on every
+// cold start, so "saving" there silently loses data. If storage is unavailable the
+// API returns an error and the client keeps the record queued locally.
+import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health } from './_kv.js';
 
-let memoryStore = [
-  {
-    id: 'rec-20261023-kk5',
-    locationId: 'kk5',
-    vendorId: 'v-kk5-1',
-    vendorName: 'Shawarma',
-    kg: 5.0,
-    collector: 'Mingdao',
-    tag: 'Free Donation',
-    notes: 'Week 3 collection',
-    photo: '',
-    timestamp: 1792728000000
-  },
-  {
-    id: 'rec-20261023-kk6',
-    locationId: 'kk6',
-    vendorId: 'v-kk6-3',
-    vendorName: 'Ayam Gunting',
-    kg: 5.0,
-    collector: 'Mingdao',
-    tag: 'Free Donation',
-    notes: 'Week 3 collection',
-    photo: '',
-    timestamp: 1792731600000
+const HASH = 'uco:records';
+const DELETED = 'uco:records_deleted';
+const LEGACY_KEY = 'uco_records';
+const MAX_RECORD_BYTES = 1_500_000;
+
+let migrated = false;
+
+// One-time import of the old single-string `uco_records` key into the hash.
+async function migrateLegacy(kv) {
+  if (migrated) return;
+  const legacy = await cmd(kv, 'GET', LEGACY_KEY).catch(() => null);
+  if (typeof legacy === 'string' && legacy) {
+    let list = [];
+    try { list = JSON.parse(legacy); } catch (_) {}
+    for (const r of Array.isArray(list) ? list : []) {
+      if (r && r.id && r.id !== 'seed-1') await cmd(kv, 'HSETNX', HASH, r.id, JSON.stringify(r));
+    }
+    await cmd(kv, 'RENAME', LEGACY_KEY, `${LEGACY_KEY}_legacy_backup`);
   }
-];
+  migrated = true;
+}
 
 export default async function handler(req, res) {
-  // Global CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setCors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  const kv = resolveKv();
+
+  if (req.method === 'GET' && req.query && req.query.health) {
+    const h = await health(kv, HASH);
+    return res.status(h.ok ? 200 : 503).json(h);
   }
 
-  // Universal KV / Upstash Credential Resolver (supports KV, UPSTASH, STORAGE or custom prefix)
-  const kvUrl = process.env.KV_REST_API_URL ||
-                process.env.UPSTASH_REDIS_REST_URL ||
-                process.env.STORAGE_REST_API_URL ||
-                process.env.KV_URL ||
-                process.env.STORAGE_URL ||
-                Object.entries(process.env).find(([k, v]) => (k.endsWith('_URL') || k.endsWith('_REST_API_URL')) && typeof v === 'string' && v.startsWith('http'))?.[1];
+  if (!kv) {
+    return res.status(503).json({ error: 'Cloud storage not configured on this deployment (no Upstash/KV env vars)' });
+  }
 
-  const kvToken = process.env.KV_REST_API_TOKEN ||
-                  process.env.UPSTASH_REDIS_REST_TOKEN ||
-                  process.env.STORAGE_REST_API_TOKEN ||
-                  process.env.STORAGE_TOKEN ||
-                  Object.entries(process.env).find(([k, v]) => (k.endsWith('_TOKEN') || k.endsWith('_REST_API_TOKEN')) && typeof v === 'string' && v.length > 15)?.[1];
+  try {
+    await migrateLegacy(kv);
 
-  // GET /api/records — Retrieve all pickups
-  if (req.method === 'GET') {
-    try {
-      if (kvUrl && kvToken) {
-        const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
-          headers: { Authorization: `Bearer ${kvToken}` },
-          cache: 'no-store'
-        });
-        const kvData = await kvRes.json();
-        let records = kvData.result ? JSON.parse(kvData.result) : memoryStore;
-        records = records.filter(r => r.id !== 'seed-1');
-        return res.status(200).json(records);
+    // GET /api/records          -> [records]                (legacy shape)
+    // GET /api/records?v=2      -> { records, deleted }
+    if (req.method === 'GET') {
+      const records = (await hgetallParsed(kv, HASH))
+        .filter(r => r && r.id && r.id !== 'seed-1')
+        .sort((a, b) => a.timestamp - b.timestamp);
+      if (req.query && req.query.v === '2') {
+        const deleted = (await cmd(kv, 'SMEMBERS', DELETED)) || [];
+        return res.status(200).json({ records, deleted });
       }
-      return res.status(200).json(memoryStore.filter(r => r.id !== 'seed-1'));
-    } catch (e) {
-      return res.status(200).json(memoryStore.filter(r => r.id !== 'seed-1'));
+      return res.status(200).json(records);
     }
-  }
 
-  const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+    if (req.method === 'POST') {
+      const body = parseBody(req);
+      if (!body || !body.id) return res.status(400).json({ error: 'Missing record id' });
+      const id = String(body.id);
 
-  // POST /api/records — Append or delete a pickup
-  if (req.method === 'POST') {
-    try {
-      const newRecord = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (!newRecord || !newRecord.id) {
-        return res.status(400).json({ error: 'Missing record id' });
-      }
-
-      // Handle record deletion (Requires Security PIN)
-      if (newRecord._deleted || newRecord.action === 'delete') {
-        if (String(newRecord.pin || '') !== ADMIN_PIN) {
+      // Delete (requires Team PIN)
+      if (body._deleted || body.action === 'delete') {
+        const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+        if (String(body.pin || '') !== ADMIN_PIN) {
           return res.status(401).json({ error: 'Unauthorized: Invalid Security PIN' });
         }
-
-        if (kvUrl && kvToken) {
-          const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
-            headers: { Authorization: `Bearer ${kvToken}` },
-            cache: 'no-store'
-          });
-          const kvData = await kvRes.json();
-          let records = kvData.result ? JSON.parse(kvData.result) : [...memoryStore];
-          records = records.filter(r => r.id !== newRecord.id && r.id !== 'seed-1');
-          await fetch(`${kvUrl}/set/uco_records`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${kvToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(JSON.stringify(records))
-          });
-          return res.status(200).json({ success: true, count: records.length });
-        } else {
-          memoryStore = memoryStore.filter(r => r.id !== newRecord.id && r.id !== 'seed-1');
-          return res.status(200).json({ success: true, count: memoryStore.length });
-        }
+        await cmd(kv, 'SADD', DELETED, id);
+        await cmd(kv, 'HDEL', HASH, id);
+        return res.status(200).json({ success: true, deleted: id });
       }
 
-      if (!newRecord.locationId || !newRecord.kg) {
-        return res.status(400).json({ error: 'Invalid record data' });
-      }
-
-      // Validate weight range
-      const kgNum = parseFloat(newRecord.kg);
+      // Create
+      if (!body.locationId || !body.kg) return res.status(400).json({ error: 'Invalid record data' });
+      const kgNum = parseFloat(body.kg);
       if (isNaN(kgNum) || kgNum <= 0 || kgNum > 500) {
         return res.status(400).json({ error: 'Weight must be between 0.1 and 500 kg' });
       }
-      newRecord.kg = Math.round(kgNum * 10) / 10;
 
-      if (kvUrl && kvToken) {
-        // Fetch current records with fresh un-cached read
-        const kvRes = await fetch(`${kvUrl}/get/uco_records`, {
-          headers: { Authorization: `Bearer ${kvToken}` },
-          cache: 'no-store'
-        });
-        const kvData = await kvRes.json();
-        let records = kvData.result ? JSON.parse(kvData.result) : [...memoryStore];
-        records = records.filter(r => r.id !== 'seed-1');
-
-        // Deduplicate and append
-        const exists = records.some(r => r.id === newRecord.id);
-        if (!exists) records.push(newRecord);
-
-        // Save back to KV
-        await fetch(`${kvUrl}/set/uco_records`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${kvToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(JSON.stringify(records))
-        });
-
-        return res.status(200).json({ success: true, count: records.length });
-      } else {
-        memoryStore = memoryStore.filter(r => r.id !== 'seed-1');
-        const exists = memoryStore.some(r => r.id === newRecord.id);
-        if (!exists) memoryStore.push(newRecord);
-        return res.status(200).json({ success: true, count: memoryStore.length });
+      if (await cmd(kv, 'SISMEMBER', DELETED, id)) {
+        return res.status(410).json({ error: 'Record was deleted', deleted: id });
       }
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  }
 
-  return res.status(405).json({ error: 'Method Not Allowed' });
+      const record = {
+        id,
+        locationId: String(body.locationId),
+        vendorId: body.vendorId || null,
+        vendorName: body.vendorName || '',
+        kg: Math.round(kgNum * 10) / 10,
+        collector: body.collector || '',
+        tag: body.tag || '',
+        notes: body.notes || '',
+        photo: body.photo || '',
+        timestamp: Number(body.timestamp) || Date.now()
+      };
+      const json = JSON.stringify(record);
+      if (json.length > MAX_RECORD_BYTES) {
+        return res.status(413).json({ error: 'Record too large (photo too big)' });
+      }
+
+      // HSETNX = idempotent: re-uploading the same id from several phones is harmless
+      const created = await cmd(kv, 'HSETNX', HASH, id, json);
+      return res.status(200).json({ success: true, id, created: created === 1 });
+    }
+
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err) {
+    console.error('[api/records]', err);
+    return res.status(500).json({ error: err.message });
+  }
 }
