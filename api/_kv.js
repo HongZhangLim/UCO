@@ -57,6 +57,17 @@ export async function hgetallParsed(kv, key) {
   return out;
 }
 
+// Parse a legacy single-key blob. The old code saved with
+// JSON.stringify(JSON.stringify(list)), and Upstash stores the raw body, so the value
+// is double-encoded (a JSON string containing JSON). Unwrap until we reach an array.
+export function parseLegacyList(raw) {
+  let v = raw;
+  for (let i = 0; i < 4 && typeof v === 'string'; i++) {
+    try { v = JSON.parse(v); } catch (_) { return []; }
+  }
+  return Array.isArray(v) ? v : [];
+}
+
 export function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

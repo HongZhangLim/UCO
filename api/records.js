@@ -8,7 +8,7 @@
 // There is deliberately NO in-memory fallback: serverless memory is wiped on every
 // cold start, so "saving" there silently loses data. If storage is unavailable the
 // API returns an error and the client keeps the record queued locally.
-import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health } from './_kv.js';
+import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health, parseLegacyList } from './_kv.js';
 
 const HASH = 'uco:records';
 const DELETED = 'uco:records_deleted';
@@ -22,9 +22,7 @@ async function migrateLegacy(kv) {
   if (migrated) return;
   const legacy = await cmd(kv, 'GET', LEGACY_KEY).catch(() => null);
   if (typeof legacy === 'string' && legacy) {
-    let list = [];
-    try { list = JSON.parse(legacy); } catch (_) {}
-    for (const r of Array.isArray(list) ? list : []) {
+    for (const r of parseLegacyList(legacy)) {
       if (r && r.id && r.id !== 'seed-1') await cmd(kv, 'HSETNX', HASH, r.id, JSON.stringify(r));
     }
     await cmd(kv, 'RENAME', LEGACY_KEY, `${LEGACY_KEY}_legacy_backup`);

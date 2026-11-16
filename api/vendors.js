@@ -5,7 +5,7 @@
 //   HASH uco:vendors          field = vendor id, value = vendor JSON
 //   SET  uco:vendors_deleted  ids deleted (stops other phones re-uploading them)
 //   STR  uco:vendors_seeded   set once the seed / legacy list has been imported
-import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health } from './_kv.js';
+import { resolveKv, cmd, hgetallParsed, setCors, parseBody, health, parseLegacyList } from './_kv.js';
 
 const HASH = 'uco:vendors';
 const DELETED = 'uco:vendors_deleted';
@@ -39,10 +39,8 @@ async function ensureSeeded(kv) {
     let list = SEED_VENDORS;
     const legacy = await cmd(kv, 'GET', LEGACY_KEY).catch(() => null);
     if (typeof legacy === 'string' && legacy) {
-      try {
-        const parsed = JSON.parse(legacy);
-        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-      } catch (_) {}
+      const parsed = parseLegacyList(legacy);
+      if (parsed.length > 0) list = parsed;
     }
     for (const v of list) {
       if (v && v.id) await cmd(kv, 'HSETNX', HASH, v.id, JSON.stringify(v));
